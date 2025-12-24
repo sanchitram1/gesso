@@ -65,3 +65,24 @@ markdown.
 - Keep README aligned with behavior; update TODOs when adding features.
 - Add tests for new parsing, templating, or API edge cases.
 - Run lint/format/tests before sending changes.
+
+## Tasks
+
+### lint
+
+```bash
+uv run ruff check . --fix --unsafe-fixes
+uv run ruff format .
+```
+
+### test
+
+```bash
+pytest
+```
+
+### sync
+
+```bash
+uv sync
+```

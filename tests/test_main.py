@@ -620,7 +620,9 @@ another_field:
         }
 
         template_fields = ["year", "custom_field", "another_field"]
-        result = render_markdown(template_path, painting_data, "2025-12-24", template_fields)
+        result = render_markdown(
+            template_path, painting_data, "2025-12-24", template_fields
+        )
 
         assert "year: 2000" in result
         assert "custom_field: Custom Value" in result

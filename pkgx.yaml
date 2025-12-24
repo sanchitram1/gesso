@@ -1,2 +1,3 @@
 dependencies:
   astral.sh/uv: ^0
+  xcfile.dev: ^0
