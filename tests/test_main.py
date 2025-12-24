@@ -2,7 +2,11 @@ import tempfile
 
 import pytest
 
-from gesso.main import post_process_fields, render_markdown
+from gesso.main import (
+    extract_template_fields,
+    post_process_fields,
+    render_markdown,
+)
 
 
 class TestPostProcessFields:
@@ -17,11 +21,12 @@ class TestPostProcessFields:
             "style": "Realism",
             "medium": "Oil on Canvas",
             "museum": "Art Institute of Chicago",
-            "image_url": "https://upload.wikimedia.org/wikipedia/commons/example.jpg",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/example.jpg",
             "description": "A beautiful painting of a wounded figure.",
         }
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["title"] == "Wounded Eurydice"
         assert result["artist"] == "[[Jean Baptiste Camille Corot]]"
@@ -45,11 +50,12 @@ class TestPostProcessFields:
             "style": "Realism, Impressionism, Symbolism",
             "medium": "Oil on Canvas, Watercolor",
             "museum": "Louvre, Metropolitan Museum",
-            "image_url": "https://example.com/image.jpg",
+            "image": "https://example.com/image.jpg",
             "description": "Test description",
         }
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["style"] == ["[[Realism]]", "[[Impressionism]]", "[[Symbolism]]"]
         assert result["medium"] == ["[[Oil on Canvas]]", "[[Watercolor]]"]
@@ -64,11 +70,12 @@ class TestPostProcessFields:
             "style": "",
             "medium": "",
             "museum": "",
-            "image_url": "",
+            "image": "",
             "description": "",
         }
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["title"] == "Untitled"
         assert result["artist"] == "[[Unknown Artist]]"
@@ -89,11 +96,12 @@ class TestPostProcessFields:
             "style": "Unknown",
             "medium": "Unknown",
             "museum": "Unknown",
-            "image_url": "Unknown",
+            "image": "Unknown",
             "description": "Unknown",
         }
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["title"] == "Mystery Painting"
         assert result["artist"] == "[[Unknown]]"
@@ -108,7 +116,8 @@ class TestPostProcessFields:
         """Test that missing fields use safe defaults."""
         input_data = {"title": "Minimal Data"}
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["title"] == "Minimal Data"
         assert result["artist"] == ""
@@ -129,11 +138,12 @@ class TestPostProcessFields:
             "style": "Renaissance",
             "medium": "Tempera on Panel",
             "museum": "Uffizi Gallery",
-            "image_url": "https://example.com/image.jpg",
+            "image": "https://example.com/image.jpg",
             "description": "A Renaissance work",
         }
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["year"] == 1450
         assert isinstance(result["year"], int)
@@ -147,11 +157,12 @@ class TestPostProcessFields:
             "style": "  Realism  ,  Impressionism  ,  Symbolism  ",
             "medium": "  Oil on Canvas  ,  Watercolor  ",
             "museum": "  Louvre  ,  Museum  ",
-            "image_url": "https://example.com/image.jpg",
+            "image": "https://example.com/image.jpg",
             "description": "Test",
         }
 
-        result = post_process_fields(input_data)
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = post_process_fields(input_data, template_fields)
 
         assert result["style"] == ["[[Realism]]", "[[Impressionism]]", "[[Symbolism]]"]
         assert result["medium"] == ["[[Oil on Canvas]]", "[[Watercolor]]"]
@@ -203,7 +214,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         assert "created: 2025-12-24" in result
         assert 'title: "Wounded Eurydice"' in result
@@ -236,7 +250,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         assert '  - "[[Modernism]]"' in result
         assert '  - "[[Cubism]]"' in result
@@ -260,7 +277,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         assert 'title: "Untitled Work"' in result
         assert "artist: " in result  # Should be empty
@@ -284,7 +304,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-25")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-25", template_fields
+        )
 
         assert "created: 2025-12-25" in result
         assert "created: {{date}}" not in result
@@ -303,7 +326,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         assert "# The Starry Night" in result
         assert "![The Starry Night](https://example.com/starry-night.jpg)" in result
@@ -322,7 +348,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         assert 'title: "Woman\'s Portrait: A Study"' in result
         assert "# Woman's Portrait: A Study" in result
@@ -341,7 +370,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         # Wikilinks in YAML lists should be quoted
         assert '  - "[[Realism]]"' in result
@@ -362,7 +394,10 @@ tags:
             "tags": ["paintings"],
         }
 
-        result = render_markdown(template_file, painting_data, "2025-12-24")
+        template_fields = ["year", "style", "medium", "museum", "image", "description"]
+        result = render_markdown(
+            template_file, painting_data, "2025-12-24", template_fields
+        )
 
         # Count occurrences of "paintings" tag in YAML section (before ---)
         yaml_section = result.split("---")[
@@ -374,3 +409,219 @@ tags:
         assert paintings_count == 1, (
             f"'paintings' tag appears {paintings_count} times, expected 1"
         )
+
+
+class TestExtractTemplateFields:
+    """Test extract_template_fields function."""
+
+    def test_extract_standard_fields(self):
+        """Test extraction of standard template fields."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("""---
+created: {{date}}
+category: "[[Painting]]"
+title: "{{title}}"
+artist: 
+year: 
+style:
+medium: 
+museum:
+image: 
+rating: 
+seen:
+tags:
+  - paintings
+---
+# Content
+""")
+            template_path = f.name
+
+        fields = extract_template_fields(template_path)
+
+        # Should extract: year, style, medium, museum, image, description (if present)
+        # Should NOT extract: title, date, created, category, rating, seen, tags, artist
+        assert "year" in fields
+        assert "style" in fields
+        assert "medium" in fields
+        assert "museum" in fields
+        assert "image" in fields
+
+        # Blacklisted fields should not be present
+        assert "title" not in fields
+        assert "created" not in fields
+        assert "category" not in fields
+        assert "rating" not in fields
+        assert "seen" not in fields
+        assert "tags" not in fields
+        assert "artist" not in fields
+
+    def test_extract_with_description_field(self):
+        """Test extraction when description field is present."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("""---
+title: "{{title}}"
+year: 
+description: 
+style:
+---
+# Content
+""")
+            template_path = f.name
+
+        fields = extract_template_fields(template_path)
+
+        assert "year" in fields
+        assert "description" in fields
+        assert "style" in fields
+        assert "title" not in fields
+
+    def test_extract_custom_fields(self):
+        """Test extraction of custom (non-standard) fields."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("""---
+title: "{{title}}"
+custom_field: 
+another_field: 
+rating: 
+---
+# Content
+""")
+            template_path = f.name
+
+        fields = extract_template_fields(template_path)
+
+        assert "custom_field" in fields
+        assert "another_field" in fields
+        assert "rating" not in fields  # Blacklisted
+        assert "title" not in fields  # Blacklisted
+
+    def test_missing_frontmatter_raises_error(self):
+        """Test that missing frontmatter raises an error."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("# No frontmatter here")
+            template_path = f.name
+
+        with pytest.raises(SystemExit):
+            extract_template_fields(template_path)
+
+    def test_all_fields_blacklisted_raises_error(self):
+        """Test that when all fields are blacklisted, an error is raised."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("""---
+title: "{{title}}"
+artist: 
+rating: 
+tags:
+  - paintings
+---
+# Content
+""")
+            template_path = f.name
+
+        with pytest.raises(SystemExit) as exc_info:
+            extract_template_fields(template_path)
+        assert "no fields to collect" in str(exc_info.value).lower()
+
+    def test_empty_frontmatter_raises_error(self):
+        """Test that empty frontmatter raises an error."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("""---
+---
+# Content
+""")
+            template_path = f.name
+
+        with pytest.raises(SystemExit) as exc_info:
+            extract_template_fields(template_path)
+        # Empty frontmatter triggers "no fields to collect" error
+        assert (
+            "no fields to collect" in str(exc_info.value).lower()
+            or "no yaml frontmatter" in str(exc_info.value).lower()
+        )
+
+    def test_nonexistent_file_raises_error(self):
+        """Test that nonexistent file raises an error."""
+        with pytest.raises(SystemExit):
+            extract_template_fields("/nonexistent/path/to/file.md")
+
+
+class TestDynamicQueryFieldMapping:
+    """Test dynamic query building and field mapping functionality."""
+
+    def test_template_to_api_field_mapping(self):
+        """Test that template field names are correctly mapped to API field names."""
+        from gesso.pp import TEMPLATE_TO_API_FIELD_MAP
+
+        # Verify the mapping exists and is correct
+        assert "image" in TEMPLATE_TO_API_FIELD_MAP
+        assert TEMPLATE_TO_API_FIELD_MAP["image"] == "image_url"
+
+        # Test that other fields map to themselves (identity mapping)
+        # This is implicit - fields not in the map should be used as-is
+
+    def test_field_mapping_logic(self):
+        """Test the logic of field mapping (without actual API call)."""
+        from gesso.pp import TEMPLATE_TO_API_FIELD_MAP
+
+        # Simulate what happens in query_painting_metadata
+        template_fields = ["year", "style", "image", "description"]
+
+        template_to_api = {}
+        for template_field in template_fields:
+            api_field = TEMPLATE_TO_API_FIELD_MAP.get(template_field, template_field)
+            template_to_api[template_field] = api_field
+
+        # Verify mappings
+        assert template_to_api["year"] == "year"  # No mapping, identity
+        assert template_to_api["style"] == "style"  # No mapping, identity
+        assert template_to_api["image"] == "image_url"  # Mapped
+        assert template_to_api["description"] == "description"  # No mapping, identity
+
+    def test_dynamic_post_process_with_custom_fields(self):
+        """Test that post_process_fields handles custom fields correctly."""
+        input_data = {
+            "title": "Test Painting",
+            "artist": "Test Artist",
+            "year": 1900,
+            "custom_field": "Custom Value",
+            "another_field": "Another Value",
+        }
+
+        template_fields = ["year", "custom_field", "another_field"]
+        result = post_process_fields(input_data, template_fields)
+
+        assert result["title"] == "Test Painting"
+        assert result["artist"] == "[[Test Artist]]"
+        assert result["year"] == 1900
+        assert result["custom_field"] == "Custom Value"
+        assert result["another_field"] == "Another Value"
+        assert result["tags"] == ["paintings"]
+
+    def test_dynamic_render_with_custom_fields(self):
+        """Test that render_markdown handles custom fields correctly."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("""---
+title: "{{title}}"
+year: 
+custom_field: 
+another_field: 
+---
+# Content
+""")
+            template_path = f.name
+
+        painting_data = {
+            "title": "Test",
+            "artist": "[[Artist]]",
+            "year": 2000,
+            "custom_field": "Custom Value",
+            "another_field": "Another Value",
+            "tags": ["paintings"],
+        }
+
+        template_fields = ["year", "custom_field", "another_field"]
+        result = render_markdown(template_path, painting_data, "2025-12-24", template_fields)
+
+        assert "year: 2000" in result
+        assert "custom_field: Custom Value" in result
+        assert "another_field: Another Value" in result
