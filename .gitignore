@@ -8,3 +8,15 @@ wheels/
 
 # Virtual environments
 .venv
+
+# .env
+.env
+
+# testing and coverage
+.coverage
+
+# outputs
+outputs/
+
+# cache
+.cache/
