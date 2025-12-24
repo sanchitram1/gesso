@@ -112,6 +112,18 @@ wheels = [
 ]
 
 [[package]]
+name = "formdt"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ruff" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9c/06/0f1e549372144d7d45fde4b3de62a3dd7963eeb0d0fc5981af45f2b5c55b/formdt-0.4.0.tar.gz", hash = "sha256:cbd571ce95d318559b750a1801428986086491d21fb2ec16578342e249987206", size = 11619, upload-time = "2025-12-10T04:25:58.029Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/50/96d5a251b050a444cde20aa3b744878dda4df72bcac692f31b2baec72576/formdt-0.4.0-py3-none-any.whl", hash = "sha256:3232cf38c90b98968ffde2f7312c3888363d3a9c37e02428795d6eec57189008", size = 5334, upload-time = "2025-12-10T04:25:58.893Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -186,6 +198,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "formdt" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -199,6 +212,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "formdt", specifier = ">=0.4.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "ruff", specifier = ">=0.14.10" },
