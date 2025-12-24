@@ -92,58 +92,67 @@ def save_to_cache(cache_dir: str, cache_key: str, data: dict) -> None:
         print(f"[WARN] Failed to save cache {cache_key}: {e}")
 
 
-def post_process_fields(data: dict) -> dict:
+def post_process_fields(data: dict, template_fields: list[str]) -> dict:
     """
-    Post-process painting data:
-    - Convert string fields to lists
-    - Wrap artist and museum names in [[...]] for Obsidian links
+    Post-process painting data dynamically based on template fields.
+    - Convert string fields to lists for list-type fields
+    - Wrap certain fields in [[...]] for Obsidian links
     - Handle empty/missing fields
+
+    Args:
+        data: Raw data from Perplexity API (with template field names)
+        template_fields: List of field names from template that need processing
     """
     processed = {}
 
     # Title (keep as-is)
     processed["title"] = data.get("title", "")
 
-    # Artist (wrap in Obsidian link)
-    artist = data.get("artist", "")
-    processed["artist"] = f"[[{artist}]]" if artist else ""
+    # Fields that should be converted to lists with wikilinks
+    list_fields = {"style", "medium", "museum"}
 
-    # Year (keep as-is, can be int or empty)
-    year = data.get("year", "")
-    processed["year"] = year if year and str(year).lower() != "unknown" else ""
+    # Fields that should be wrapped in wikilinks (but not lists)
+    wikilink_fields = {"artist"}
 
-    # Style (convert string to list, wrap in links)
-    style_str = data.get("style", "")
-    if style_str and str(style_str).lower() != "unknown":
-        styles = [s.strip() for s in str(style_str).split(",")]
-        processed["style"] = [f"[[{s}]]" for s in styles if s]
-    else:
-        processed["style"] = []
+    # Process each template field
+    for field in template_fields:
+        value = data.get(field, "")
 
-    # Medium (convert string to list, wrap in links)
-    medium_str = data.get("medium", "")
-    if medium_str and str(medium_str).lower() != "unknown":
-        mediums = [m.strip() for m in str(medium_str).split(",")]
-        processed["medium"] = [f"[[{m}]]" for m in mediums if m]
-    else:
-        processed["medium"] = []
+        if field in list_fields:
+            # Convert comma-separated string to list with wikilinks
+            if value and str(value).lower() != "unknown":
+                items = [item.strip() for item in str(value).split(",") if item.strip()]
+                processed[field] = [f"[[{item}]]" for item in items]
+            else:
+                processed[field] = []
+        elif field in wikilink_fields:
+            # Wrap single value in wikilinks
+            processed[field] = f"[[{value}]]" if value else ""
+        elif field == "image":
+            # Handle image field (template uses "image", API returns it as "image")
+            image_value = data.get("image", "")
+            if image_value and str(image_value).lower() != "unknown":
+                processed["image"] = image_value
+            else:
+                processed["image"] = ""
+        elif field == "year":
+            # Year: keep as-is, can be int or empty
+            year = data.get("year", "")
+            processed["year"] = year if year and str(year).lower() != "unknown" else ""
+        elif field == "description":
+            # Description: keep as-is (including "Unknown" if present)
+            processed["description"] = data.get("description", "")
+        else:
+            # Other fields: keep as-is, but filter "Unknown"
+            if value and str(value).lower() != "unknown":
+                processed[field] = value
+            else:
+                processed[field] = ""
 
-    # Museum (convert string to list, wrap in links)
-    museum_str = data.get("museum", "")
-    if museum_str and str(museum_str).lower() != "unknown":
-        museums = [m.strip() for m in str(museum_str).split(",")]
-        processed["museum"] = [f"[[{m}]]" for m in museums if m]
-    else:
-        processed["museum"] = []
-
-    # Image (use image_url from API response)
-    image_url = data.get("image_url", "")
-    processed["image"] = (
-        image_url if image_url and str(image_url).lower() != "unknown" else ""
-    )
-
-    # Description
-    processed["description"] = data.get("description", "")
+    # Handle artist separately (always process if present)
+    if "artist" not in processed:
+        artist = data.get("artist", "")
+        processed["artist"] = f"[[{artist}]]" if artist else ""
 
     # Fixed fields
     processed["tags"] = ["paintings"]
@@ -151,10 +160,18 @@ def post_process_fields(data: dict) -> dict:
     return processed
 
 
-def render_markdown(template_path: str, painting_data: dict, today: str) -> str:
+def render_markdown(
+    template_path: str, painting_data: dict, today: str, template_fields: list[str]
+) -> str:
     """
     Render markdown from template with painting data.
     Replaces {{key}} placeholders and formats lists as YAML arrays.
+
+    Args:
+        template_path: Path to template file
+        painting_data: Processed painting data
+        today: Today's date string
+        template_fields: List of field names from template (to determine which are lists)
     """
     try:
         with open(template_path, "r") as f:
@@ -186,49 +203,60 @@ def render_markdown(template_path: str, painting_data: dict, today: str) -> str:
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, value)
 
-    # Handle artist field in YAML frontmatter
+    # Fields that should be rendered as YAML lists
+    list_fields = {"style", "medium", "museum"}
+
+    # Handle artist field separately (always render if present, even though it's blacklisted)
     artist = painting_data.get("artist", "")
-    quoted_artist = f'"{artist}"' if artist else ""
-    content = re.sub(
-        r"(artist:)\s*$", r"\1 " + quoted_artist, content, flags=re.MULTILINE
-    )
+    if artist:
+        quoted_artist = f'"{artist}"' if artist else ""
+        content = re.sub(
+            r"(artist:)\s*$", r"\1 " + quoted_artist, content, flags=re.MULTILINE
+        )
 
-    # Handle year field in YAML frontmatter
-    year = painting_data.get("year", "")
-    year_str = str(year) if year else ""
-    content = re.sub(r"(year:)\s*$", r"\1 " + year_str, content, flags=re.MULTILINE)
+    # Process each template field dynamically
+    for field in template_fields:
+        value = painting_data.get(field, "")
 
-    # Handle list fields (style, medium, museum)
-    # Note: tags are left as-is in template since they're hardcoded as ["paintings"]
-    style_list = format_yaml_list(painting_data.get("style", []))
-    medium_list = format_yaml_list(painting_data.get("medium", []))
-    museum_list = format_yaml_list(painting_data.get("museum", []))
-
-    # Replace list fields in YAML
-    content = re.sub(
-        r"(style:)\s*$",
-        r"\1" + ("\n" + style_list if style_list else ""),
-        content,
-        flags=re.MULTILINE,
-    )
-
-    content = re.sub(
-        r"(medium:)\s*$",
-        r"\1" + ("\n" + medium_list if medium_list else ""),
-        content,
-        flags=re.MULTILINE,
-    )
-
-    content = re.sub(
-        r"(museum:)\s*$",
-        r"\1" + ("\n" + museum_list if museum_list else ""),
-        content,
-        flags=re.MULTILINE,
-    )
-
-    # Handle image field in YAML
-    image = painting_data.get("image", "")
-    content = re.sub(r"(image:)\s*$", r"\1 " + image, content, flags=re.MULTILINE)
+        if field in list_fields:
+            # Render as YAML list
+            list_str = format_yaml_list(value if isinstance(value, list) else [])
+            content = re.sub(
+                rf"({re.escape(field)}:)\s*$",
+                r"\1" + ("\n" + list_str if list_str else ""),
+                content,
+                flags=re.MULTILINE,
+            )
+        elif field == "year":
+            # Year field: convert to string
+            year_str = str(value) if value else ""
+            content = re.sub(
+                rf"({re.escape(field)}:)\s*$",
+                r"\1 " + year_str,
+                content,
+                flags=re.MULTILINE,
+            )
+        elif field == "image":
+            # Image field: keep as-is
+            image = value if isinstance(value, str) else ""
+            content = re.sub(
+                rf"({re.escape(field)}:)\s*$",
+                r"\1 " + image,
+                content,
+                flags=re.MULTILINE,
+            )
+        else:
+            # Other scalar fields: render as string value
+            field_value = str(value) if value else ""
+            # Quote if contains special characters or wikilinks
+            if "[[" in field_value or "]]" in field_value:
+                field_value = f'"{field_value}"'
+            content = re.sub(
+                rf"({re.escape(field)}:)\s*$",
+                r"\1 " + field_value,
+                content,
+                flags=re.MULTILINE,
+            )
 
     return content
 
@@ -242,6 +270,66 @@ def write_output(output_dir: str, filename: str, content: str) -> None:
             f.write(content)
     except Exception as e:  # pragma: no cover - defensive logging
         print(f"[ERROR] Failed to write {filename}: {e}")
+
+
+def extract_template_fields(template_path: str) -> list[str]:
+    """
+    Extract YAML frontmatter field names from template file.
+
+    All frontmatter fields except blacklisted ones will be queried from Perplexity.
+    Blacklisted fields (user-defined, not from Perplexity): title, date, created,
+    category, rating, seen, tags, artist.
+
+    Returns list of field names that should be queried from Perplexity.
+    """
+    try:
+        with open(template_path, "r") as f:
+            content = f.read()
+    except FileNotFoundError:
+        raise SystemExit(f"[ERROR] Template not found: {template_path}")
+
+    # Extract YAML frontmatter (between --- delimiters)
+    frontmatter_match = re.search(
+        r"^---\s*\n(.*?)\n---", content, re.DOTALL | re.MULTILINE
+    )
+    if not frontmatter_match:
+        raise SystemExit(
+            f"[ERROR] Template {template_path} has no YAML frontmatter (missing --- delimiters)"
+        )
+
+    frontmatter = frontmatter_match.group(1)
+
+    # Extract field names using regex pattern for "fieldname: value"
+    field_pattern = r"^(\w+):\s*"
+    fields = []
+    for line in frontmatter.split("\n"):
+        match = re.match(field_pattern, line)
+        if match:
+            field_name = match.group(1)
+            fields.append(field_name)
+
+    # Blacklist of fields that should NOT be queried from Perplexity
+    blacklist = {
+        "title",
+        "date",
+        "created",
+        "category",
+        "rating",
+        "seen",
+        "tags",
+        "artist",
+    }
+
+    # Filter out blacklisted fields
+    filtered_fields = [f for f in fields if f not in blacklist]
+
+    if not filtered_fields:
+        raise SystemExit(
+            f"[ERROR] Template {template_path} has no fields to collect from Perplexity "
+            "(all fields are blacklisted or empty)"
+        )
+
+    return filtered_fields
 
 
 def require_api_key() -> str:
@@ -258,6 +346,7 @@ def main(
     input_file: str = "data/example-input.txt",
     output_dir: str = "outputs/",
     cache_dir: str = ".cache",
+    template_file: str = "data/example-template.md",
 ):
     """
     Main orchestration function.
@@ -268,11 +357,21 @@ def main(
     # Get today's date
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Template lives at the project root under data/, even when installed.
-    project_root = Path(__file__).resolve().parents[2]
-    template_path = project_root / "data" / "example-template.md"
+    # Resolve template path (handle both relative and absolute paths)
+    template_path = Path(template_file)
+    if not template_path.is_absolute():
+        # If relative, resolve relative to project root
+        project_root = Path(__file__).resolve().parents[2]
+        template_path = project_root / template_file
+    else:
+        template_path = Path(template_file)
+
     if not template_path.exists():
         raise SystemExit(f"[ERROR] Template not found at {template_path}")
+
+    # Extract fields from template
+    template_fields = extract_template_fields(str(template_path))
+    print(f"[INFO] Collecting fields from Perplexity: {', '.join(template_fields)}")
 
     # Parse input
     paintings = parse_input(input_file)
@@ -280,7 +379,7 @@ def main(
         print("[WARN] No paintings found in input file")
         return
 
-    print(f"\\nProcessing {len(paintings)} paintings...")
+    print(f"\nProcessing {len(paintings)} paintings...")
 
     cache_hits = 0
     api_queries = 0
@@ -298,9 +397,11 @@ def main(
             print(f"[CACHE] {title} by {artist}")
             cache_hits += 1
         else:
-            # Query Perplexity using pp.py
+            # Query Perplexity using pp.py with template fields
             print(f"[QUERY] {title} by {artist}")
-            painting_data = query_painting_metadata(title, artist)
+            painting_data = query_painting_metadata(
+                title, artist, fields=template_fields
+            )
             api_queries += 1
 
             # Save to cache
@@ -312,17 +413,19 @@ def main(
             continue
 
         # Post-process fields
-        painting_data = post_process_fields(painting_data)
+        painting_data = post_process_fields(painting_data, template_fields)
 
         # Render markdown
-        markdown = render_markdown(str(template_path), painting_data, today)
+        markdown = render_markdown(
+            str(template_path), painting_data, today, template_fields
+        )
 
         # Write output
         output_filename = f"{title}.md"
         write_output(output_dir, output_filename, markdown)
         print(f"[WRITE] {output_filename}")
 
-    print(f"\\n✓ Processed {len(paintings)} paintings")
+    print(f"\n✓ Processed {len(paintings)} paintings")
     print(f"  - {cache_hits} from cache")
     print(f"  - {api_queries} new API queries")
 
@@ -342,6 +445,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--cache", default=".cache", help="Cache directory (default: .cache)"
     )
+    parser.add_argument(
+        "--template",
+        default="data/example-template.md",
+        help="Template file path (default: data/example-template.md)",
+    )
 
     args = parser.parse_args()
-    main(input_file=args.input, output_dir=args.output, cache_dir=args.cache)
+    main(
+        input_file=args.input,
+        output_dir=args.output,
+        cache_dir=args.cache,
+        template_file=args.template,
+    )
