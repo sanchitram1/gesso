@@ -13,7 +13,7 @@ dependencies = [
 Repository = "https://github.com/sanchitram1/gesso.git"
 
 [project.scripts]
-gesso = "paintings.main:main"
+gesso = "gesso.main:main"
 
 
 [dependency-groups]
