@@ -34,6 +34,9 @@ jobs:
 
       - name: Submit to Coveralls
         uses: coverallsapp/github-action@v2
+        env:
+          NODE_COVERALLS_DEBUG: 1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}}}
           file: coverage.xml
+          debug: true

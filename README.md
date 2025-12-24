@@ -1,18 +1,26 @@
-# Paintings Vault Automation
+# gesso
 
-Generate Obsidian-ready painting notes from a simple input list. The CLI reads `PERPLEXITY_API_KEY` from your environment (or `.env`), enriches each row via Perplexity, and writes markdown files from the bundled template.
+Generate Obsidian-ready painting notes from a simple input list. The CLI reads
+`PERPLEXITY_API_KEY` from your environment (or `.env`), enriches each row via
+Perplexity, and writes markdown files from the bundled template.
+
+## Pre-requisites
+
+- [`uv`](https://astral.sh/uv) for dependency management
 
 ## Quickstart
-- Install deps: `pkgx uv sync`
+- Install deps: `uv sync`
 - Export `PERPLEXITY_API_KEY` (or add to `.env`)
-- Run: `pkgx uv run imbue --input data/input.txt --output outputs/`
+- Run: ` uv run imbue --input data/input.txt --output outputs/`
   - Defaults: `--input data/input.txt --output outputs/ --cache .cache`
 
 ## Input & Template
-- Input lines: `number: Title, Artist` (optional `, Location` is ignored today).
-- Default template: `data/painting-template.md`; output files land in `outputs/{title}.md`.
+- Input lines: `number: Title, Artist`
+- Default template: `data/painting-template.md`; output files land in
+  `outputs/{title}.md`.
 - Cache: `.cache/{title_artist}.json` to avoid duplicate API calls.
-- Open TODO: make template path configurable (flag or env) so non-default templates work.
+- Open TODO: make template path configurable (flag or env) so non-default
+  templates work.
 
 ## Flow (per painting)
 1. Parse input line into `{number, title, artist}`.
@@ -22,14 +30,19 @@ Generate Obsidian-ready painting notes from a simple input list. The CLI reads `
 5. Write markdown to the output directory.
 
 ## Module reference
-- `parse_input(filepath)`: read lines into structured dicts; warns on invalid rows.
+- `parse_input(filepath)`: read lines into structured dicts; warns on invalid
+  rows.
 - `get_cache_key(title, artist)`: normalize to cache filename.
 - `load_from_cache / save_to_cache`: JSON cache helpers under `.cache/`.
-- `query_painting_metadata(title, artist)`: Perplexity SDK wrapper using `PERPLEXITY_API_KEY`.
-- `post_process_fields(data)`: convert comma-separated strings to lists and wrap wikilinks; drop `"Unknown"` values.
-- `render_markdown(template_path, painting_data, today)`: fill template placeholders and YAML lists.
-- `write_output(output_dir, filename, content)`: ensure dirs exist and persist markdown.
-- `main(...)`: CLI orchestrator; invoked via `pkgx uv run imbue`.
+- `query_painting_metadata(title, artist)`: Perplexity SDK wrapper using
+  `PERPLEXITY_API_KEY`.
+- `post_process_fields(data)`: convert comma-separated strings to lists and wrap
+  wikilinks; drop `"Unknown"` values.
+- `render_markdown(template_path, painting_data, today)`: fill template
+  placeholders and YAML lists.
+- `write_output(output_dir, filename, content)`: ensure dirs exist and persist
+  markdown.
+- `main(...)`: CLI orchestrator; invoked via `uv run imbue`.
 
 ## Error handling
 - Missing env key: fails fast with a clear message.
@@ -39,8 +52,8 @@ Generate Obsidian-ready painting notes from a simple input list. The CLI reads `
 
 ## Development
 - Python 3.13+, managed with `uv`.
-- Style: `pkgx uv run ruff format --check .` and `pkgx uv run ruff check .`
-- Tests: `pkgx uv run pytest -v --cov --cov-report=xml`
+- Style: `uv run ruff format --check .` and `uv run ruff check .`
+- Tests: `uv run pytest -v --cov --cov-report=xml`
 - CI mirrors these steps (`.github/workflows/ci.yml`).
 
 ## Contributing
