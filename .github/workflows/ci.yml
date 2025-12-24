@@ -34,11 +34,8 @@ jobs:
 
       - name: Submit to Coveralls
         # uses: coverallsapp/github-action@v2
-        run: coveralls
+        run: coveralls --service=github-actions
         env:
-          NODE_COVERALLS_DEBUG: 1
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}}}
-          file: coverage.xml
-          debug: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
