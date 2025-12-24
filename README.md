@@ -1,5 +1,10 @@
 # gesso
 
+[![CI](https://github.com/sanchitram1/gesso/actions/workflows/ci.yml/badge.svg)
+](https://github.com/sanchitram1/gesso/actions/workflows/ci.yml)
+[![Coverage](https://coveralls.io/repos/github/sanchitram1/gesso/badge.svg?branch=main)
+](https://coveralls.io/github/sanchitram1/gesso?branch=main)
+
 Generate Obsidian-ready painting notes from a simple input list. The CLI reads
 `PERPLEXITY_API_KEY` from your environment (or `.env`), enriches each row via
 Perplexity, and writes markdown files from the bundled template.
@@ -17,10 +22,10 @@ Perplexity, and writes markdown files from the bundled template.
 ## Input & Template
 - Input lines: `number: Title, Artist`
 - Default template: `data/painting-template.md`; output files land in
-  `outputs/{title}.md`.
+`outputs/{title}.md`.
 - Cache: `.cache/{title_artist}.json` to avoid duplicate API calls.
 - Open TODO: make template path configurable (flag or env) so non-default
-  templates work.
+templates work.
 
 ## Flow (per painting)
 1. Parse input line into `{number, title, artist}`.
@@ -31,17 +36,17 @@ Perplexity, and writes markdown files from the bundled template.
 
 ## Module reference
 - `parse_input(filepath)`: read lines into structured dicts; warns on invalid
-  rows.
+rows.
 - `get_cache_key(title, artist)`: normalize to cache filename.
 - `load_from_cache / save_to_cache`: JSON cache helpers under `.cache/`.
 - `query_painting_metadata(title, artist)`: Perplexity SDK wrapper using
-  `PERPLEXITY_API_KEY`.
+`PERPLEXITY_API_KEY`.
 - `post_process_fields(data)`: convert comma-separated strings to lists and wrap
-  wikilinks; drop `"Unknown"` values.
+wikilinks; drop `"Unknown"` values.
 - `render_markdown(template_path, painting_data, today)`: fill template
-  placeholders and YAML lists.
+placeholders and YAML lists.
 - `write_output(output_dir, filename, content)`: ensure dirs exist and persist
-  markdown.
+markdown.
 - `main(...)`: CLI orchestrator; invoked via `uv run imbue`.
 
 ## Error handling
