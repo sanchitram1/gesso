@@ -33,9 +33,11 @@ jobs:
         run: uv run pytest -v --cov --cov-report=xml
 
       - name: Submit to Coveralls
-        uses: coverallsapp/github-action@v2
+        # uses: coverallsapp/github-action@v2
+        run: coveralls
         env:
           NODE_COVERALLS_DEBUG: 1
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}}}
           file: coverage.xml

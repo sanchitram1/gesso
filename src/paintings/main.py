@@ -255,7 +255,7 @@ def require_api_key() -> str:
 
 
 def main(
-    input_file: str = "data/input.txt",
+    input_file: str = "data/example-input.txt",
     output_dir: str = "outputs/",
     cache_dir: str = ".cache",
 ):
@@ -270,7 +270,7 @@ def main(
 
     # Template lives at the project root under data/, even when installed.
     project_root = Path(__file__).resolve().parents[2]
-    template_path = project_root / "data" / "painting-template.md"
+    template_path = project_root / "data" / "example-template.md"
     if not template_path.exists():
         raise SystemExit(f"[ERROR] Template not found at {template_path}")
 
