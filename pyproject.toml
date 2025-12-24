@@ -1,5 +1,5 @@
 [project]
-name = "paintings"
+name = "gesso"
 version = "0.1.0"
 description = "Automate creation of Obsidian markdown files for art collection"
 readme = "README.md"
@@ -9,12 +9,16 @@ dependencies = [
     "python-dotenv>=1.2.1",
 ]
 
+[project.urls]
+Repository = "https://github.com/sanchitram1/gesso.git"
+
 [project.scripts]
 gesso = "paintings.main:main"
 
 
 [dependency-groups]
 dev = [
+    "coveralls>=4.0.2",
     "formdt>=0.4.0",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
