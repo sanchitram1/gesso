@@ -2,7 +2,7 @@ import tempfile
 
 import pytest
 
-from paintings.main import post_process_fields, render_markdown
+from gesso.main import post_process_fields, render_markdown
 
 
 class TestPostProcessFields:
