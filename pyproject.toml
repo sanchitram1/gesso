@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-imbue = "paintings.main:main"
+gesso = "paintings.main:main"
 
 
 [dependency-groups]

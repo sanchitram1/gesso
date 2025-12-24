@@ -55,5 +55,3 @@ Return ONLY valid JSON, no other text."""
     except Exception as e:
         print(f"[ERROR] Perplexity query failed for '{title}' by {artist}: {e}")
         return {}
-
-
