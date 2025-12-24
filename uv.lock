@@ -189,13 +189,13 @@ name = "gesso"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "coveralls" },
     { name = "perplexityai" },
     { name = "python-dotenv" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "coveralls" },
     { name = "formdt" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -204,13 +204,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coveralls", specifier = ">=4.0.2" },
     { name = "perplexityai", specifier = ">=0.22.2" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "coveralls", specifier = ">=4.0.2" },
     { name = "formdt", specifier = ">=0.4.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-cov", specifier = ">=7.0.0" },

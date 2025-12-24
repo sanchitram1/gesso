@@ -5,7 +5,6 @@ description = "Automate creation of Obsidian markdown files for art collection"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "coveralls>=4.0.2",
     "perplexityai>=0.22.2",
     "python-dotenv>=1.2.1",
 ]
@@ -19,6 +18,7 @@ gesso = "paintings.main:main"
 
 [dependency-groups]
 dev = [
+    "coveralls>=4.0.2",
     "formdt>=0.4.0",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
