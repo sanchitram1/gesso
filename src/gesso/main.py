@@ -3,13 +3,13 @@ import argparse
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-
 from dotenv import load_dotenv
 
-from .pp import query_painting_metadata
+from .llm import query_painting_metadata
+from .model_spec import ResolvedModel, resolve_model
 
 # Load environment variables early so local .env is respected for the CLI.
 load_dotenv()
@@ -60,13 +60,15 @@ def parse_input(filepath: str) -> list[dict]:
     return paintings
 
 
-def get_cache_key(title: str, artist: str) -> str:
-    """Generate cache key from title and artist."""
+def get_cache_key(title: str, artist: str, *, provider: str = "perplexity") -> str:
+    """Generate cache key from title and artist (Perplexity keeps legacy .json names)."""
     key = f"{title}_{artist}"
     # Normalize: lowercase, replace spaces with underscores, remove special chars
     key = key.lower().replace(" ", "_")
     key = re.sub(r"[^a-z0-9_]", "", key)
-    return f"{key}.json"
+    if provider == "perplexity":
+        return f"{key}.json"
+    return f"{key}.{provider}.json"
 
 
 def load_from_cache(cache_dir: str, cache_key: str) -> dict | None:
@@ -92,7 +94,9 @@ def save_to_cache(cache_dir: str, cache_key: str, data: dict) -> None:
         print(f"[WARN] Failed to save cache {cache_key}: {e}")
 
 
-def post_process_fields(data: dict, template_fields: list[str]) -> dict:
+def post_process_fields(
+    data: dict, template_fields: list[str], fields_only: list[str] | None = None
+) -> dict:
     """
     Post-process painting data dynamically based on template fields.
     - Convert string fields to lists for list-type fields
@@ -100,8 +104,10 @@ def post_process_fields(data: dict, template_fields: list[str]) -> dict:
     - Handle empty/missing fields
 
     Args:
-        data: Raw data from Perplexity API (with template field names)
+        data: Raw JSON from the LLM (with template field names)
         template_fields: List of field names from template that need processing
+        fields_only: If set, process only these field names from template_fields
+          (omit others). Used by enrich to avoid overwriting missing keys as empty.
     """
     processed = {}
 
@@ -114,8 +120,10 @@ def post_process_fields(data: dict, template_fields: list[str]) -> dict:
     # Fields that should be wrapped in wikilinks (but not lists)
     wikilink_fields = {"artist"}
 
+    iterable = fields_only if fields_only is not None else template_fields
+
     # Process each template field
-    for field in template_fields:
+    for field in iterable:
         value = data.get(field, "")
 
         if field in list_fields:
@@ -276,11 +284,11 @@ def extract_template_fields(template_path: str) -> list[str]:
     """
     Extract YAML frontmatter field names from template file.
 
-    All frontmatter fields except blacklisted ones will be queried from Perplexity.
-    Blacklisted fields (user-defined, not from Perplexity): title, date, created,
+    All frontmatter fields except blacklisted ones will be queried from the LLM.
+    Blacklisted fields (user-defined, not from the API): title, date, created,
     category, rating, seen, tags, artist.
 
-    Returns list of field names that should be queried from Perplexity.
+    Returns list of field names that should be queried from the model.
     """
     try:
         with open(template_path, "r") as f:
@@ -308,7 +316,7 @@ def extract_template_fields(template_path: str) -> list[str]:
             field_name = match.group(1)
             fields.append(field_name)
 
-    # Blacklist of fields that should NOT be queried from Perplexity
+    # Blacklist of fields that should NOT be queried from the API
     blacklist = {
         "title",
         "date",
@@ -325,53 +333,76 @@ def extract_template_fields(template_path: str) -> list[str]:
 
     if not filtered_fields:
         raise SystemExit(
-            f"[ERROR] Template {template_path} has no fields to collect from Perplexity "
+            f"[ERROR] Template {template_path} has no fields to collect from the model "
             "(all fields are blacklisted or empty)"
         )
 
     return filtered_fields
 
 
-def require_api_key() -> str:
-    """Ensure PERPLEXITY_API_KEY is available before running."""
-    api_key: Optional[str] = os.getenv("PERPLEXITY_API_KEY")
-    if not api_key:
+def require_llm_credentials(resolved: ResolvedModel) -> None:
+    """Ensure the API key for the chosen provider is set."""
+    if resolved.provider == "perplexity":
+        if not os.getenv("PERPLEXITY_API_KEY"):
+            raise SystemExit(
+                "[ERROR] PERPLEXITY_API_KEY is not set. Export it or add it to your .env file."
+            )
+        return
+    if not (os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY")):
         raise SystemExit(
-            "[ERROR] PERPLEXITY_API_KEY is not set. Export it or add it to your .env file."
+            "[ERROR] Kimi requires MOONSHOT_API_KEY or KIMI_API_KEY "
+            "(see https://platform.kimi.ai/docs/api/overview)."
         )
-    return api_key
 
 
-def main(
-    input_file: str = "data/example-input.txt",
+def resolve_template_path(template_file: str) -> Path:
+    """Resolve template/default asset paths relative to the repository root."""
+    p = Path(template_file).expanduser()
+    if p.is_absolute():
+        return p.resolve()
+    project_root = Path(__file__).resolve().parents[2]
+    return (project_root / template_file).resolve()
+
+
+def normalize_cli_argv(argv: list[str]) -> list[str]:
+    """Prepend implicit `new` for legacy flag-only invocations."""
+    if not argv:
+        return ["new"]
+    head = argv[0]
+    if head in {"new", "enrich"} or head in {"-h", "--help"}:
+        return argv
+    if head.startswith("-"):
+        return ["new", *argv]
+    return argv
+
+
+def run_new(
+    input_file: str = "data/input.txt",
     output_dir: str = "outputs/",
     cache_dir: str = ".cache",
     template_file: str = "data/example-template.md",
+    *,
+    resolved_model: ResolvedModel | None = None,
 ):
     """
     Main orchestration function.
-    Parse input, query Perplexity (or load from cache), render, and write output.
+    Parse input, query the configured LLM (or load from cache), render, and write output.
     """
-    require_api_key()
+    resolved = resolved_model or resolve_model("perplexity")
+    require_llm_credentials(resolved)
 
     # Get today's date
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Resolve template path (handle both relative and absolute paths)
-    template_path = Path(template_file)
-    if not template_path.is_absolute():
-        # If relative, resolve relative to project root
-        project_root = Path(__file__).resolve().parents[2]
-        template_path = project_root / template_file
-    else:
-        template_path = Path(template_file)
+    template_path = resolve_template_path(template_file)
 
     if not template_path.exists():
         raise SystemExit(f"[ERROR] Template not found at {template_path}")
 
     # Extract fields from template
     template_fields = extract_template_fields(str(template_path))
-    print(f"[INFO] Collecting fields from Perplexity: {', '.join(template_fields)}")
+    label = f"{resolved.provider} ({resolved.api_model})"
+    print(f"[INFO] Collecting fields via {label}: {', '.join(template_fields)}")
 
     # Parse input
     paintings = parse_input(input_file)
@@ -389,7 +420,7 @@ def main(
         artist = painting["artist"]
 
         # Get cache key
-        cache_key = get_cache_key(title, artist)
+        cache_key = get_cache_key(title, artist, provider=resolved.provider)
 
         # Try to load from cache
         painting_data = load_from_cache(cache_dir, cache_key)
@@ -397,11 +428,11 @@ def main(
             print(f"[CACHE] {title} by {artist}")
             cache_hits += 1
         else:
-            # Query Perplexity using pp.py with template fields
+            # Query LLM with template fields
             print(f"[QUERY] {title} by {artist}")
             painting_data = query_painting_metadata(
-                title, artist, fields=template_fields
-            )
+                title, artist, fields=template_fields, resolved=resolved
+            ).data
             api_queries += 1
 
             # Save to cache
@@ -430,31 +461,137 @@ def main(
     print(f"  - {api_queries} new API queries")
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    """
+    CLI entry point. Parses `argv` when provided (useful for tests); otherwise reads
+    :data:`sys.argv`. Legacy invocations without a subcommand prepend `new` when the
+    first token is a dash-prefixed option.
+    """
+    raw = normalize_cli_argv(list(sys.argv[1:] if argv is None else argv))
+
     parser = argparse.ArgumentParser(
-        description="Generate Obsidian painting notes from input list"
+        prog="gesso",
+        description="Obsidian painting note tools — generate notes or enrich existing ones.",
     )
-    parser.add_argument(
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    new_p = sub.add_parser(
+        "new",
+        help="Generate new Obsidian painting notes from an input list",
+    )
+    new_p.add_argument(
         "--input",
         default="data/input.txt",
         help="Input file path (default: data/input.txt)",
     )
-    parser.add_argument(
+    new_p.add_argument(
         "--output", default="outputs/", help="Output directory (default: outputs/)"
     )
-    parser.add_argument(
+    new_p.add_argument(
         "--cache", default=".cache", help="Cache directory (default: .cache)"
     )
-    parser.add_argument(
+    new_p.add_argument(
         "--template",
         default="data/example-template.md",
         help="Template file path (default: data/example-template.md)",
     )
-
-    args = parser.parse_args()
-    main(
-        input_file=args.input,
-        output_dir=args.output,
-        cache_dir=args.cache,
-        template_file=args.template,
+    new_p.add_argument(
+        "--model",
+        default="perplexity",
+        help=(
+            "LLM backend: perplexity (default), kimi, or provider:model_id "
+            "(e.g. kimi:kimi-k2.6, perplexity:sonar-pro)"
+        ),
     )
+
+    enrich_p = sub.add_parser(
+        "enrich",
+        help="Propose factual frontmatter updates for an existing note (proposal file by default)",
+    )
+    enrich_p.add_argument(
+        "--note",
+        required=True,
+        help="Path to existing Obsidian painting markdown note",
+    )
+    enrich_p.add_argument(
+        "--template", required=True, help="Painting template markdown path"
+    )
+    enrich_p.add_argument(
+        "--attachments",
+        default=None,
+        help="Attachments directory (referenced in proposals; optional for future image download)",
+    )
+    enrich_p.add_argument(
+        "--cache", default=".cache", help="Cache directory (default: .cache)"
+    )
+    enrich_p.add_argument(
+        "--proposal-dir",
+        default="manifests/painting-enrichment",
+        help=(
+            "Directory for enrichment proposal Markdown (default: manifests/painting-enrichment)"
+        ),
+    )
+    enrich_p.add_argument(
+        "--proposal-only",
+        action="store_true",
+        help=(
+            "Default-safe mode: write the proposal Markdown only "
+            "(use --apply to update the vault note)."
+        ),
+    )
+    enrich_p.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write proposed frontmatter into the note itself (destructive)",
+    )
+    enrich_p.add_argument(
+        "--download-image",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    enrich_p.add_argument(
+        "--model",
+        default="perplexity",
+        help=(
+            "LLM backend: perplexity (default), kimi, or provider:model_id "
+            "(e.g. kimi:kimi-k2.6)"
+        ),
+    )
+
+    args = parser.parse_args(raw)
+
+    if args.command == "enrich" and getattr(args, "download_image", False):
+        raise SystemExit(
+            "[ERROR] --download-image is reserved for future use and is not implemented yet."
+        )
+
+    if args.command == "new":
+        run_new(
+            input_file=args.input,
+            output_dir=args.output,
+            cache_dir=args.cache,
+            template_file=args.template,
+            resolved_model=resolve_model(args.model),
+        )
+    elif args.command == "enrich":
+        attachments = (
+            Path(args.attachments).expanduser().resolve() if args.attachments else None
+        )
+        apply = getattr(args, "apply", False)
+        from .enrich import run_enrich
+
+        run_enrich(
+            note_path=args.note,
+            template_path=args.template,
+            cache_dir=args.cache,
+            attachments_dir=attachments,
+            proposal_dir=args.proposal_dir,
+            apply=apply,
+            model=args.model,
+        )
+    else:  # pragma: no cover - argparse guards subcommands
+        parser.error(f"unknown command {args.command!r}")
+
+
+if __name__ == "__main__":
+    main()

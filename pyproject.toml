@@ -1,12 +1,14 @@
 [project]
 name = "gesso"
-version = "0.2.0"
+version = "0.3.0"
 description = "Automate creation of Obsidian markdown files for art collection"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "openai>=1.0.0",
     "perplexityai>=0.22.2",
     "python-dotenv>=1.2.1",
+    "pyyaml>=6.0.2",
 ]
 
 [project.urls]
