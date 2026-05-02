@@ -3,7 +3,7 @@
 High-level guidance for agents. Full implementation details live in `README.md`.
 
 ## Overview
-- CLI to turn `data/input.txt` rows into Obsidian markdown using the Perplexity API (env var `PERPLEXITY_API_KEY`).
+- CLI to turn `data/input.txt` rows into Obsidian markdown using **Perplexity** or **Kimi (Moonshot)** (`--model`). Keys: `PERPLEXITY_API_KEY`, or `MOONSHOT_API_KEY` / `KIMI_API_KEY` for Kimi.
 - Uses the bundled template in `data/painting-template.md`; outputs go to `outputs/`.
 - Cache sits under `.cache/` to avoid duplicate queries.
 
